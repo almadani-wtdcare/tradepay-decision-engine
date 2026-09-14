@@ -1,0 +1,24 @@
+{
+  "version": "2026.09-v1",
+  "currency": "SAR",
+  "min_ticket": 500,
+  "min_partial_fraction": 0.2,
+  "rounding": 100,
+  "max_defaults": 0,
+  "history_confidence_orders": 10,
+  "eligible_tiers": ["A", "B", "C", "D"],
+  "tier_base_score": {"A": 80, "B": 68, "C": 56, "D": 44},
+  "tier_base_rate_pct": {"A": 1.0, "B": 1.5, "C": 2.0, "D": 2.5},
+  "tier_term_days": {"A": 30, "B": 30, "C": 21, "D": 14},
+  "bands": [
+    {"name": "LOW", "min_score": 70, "approval_cap": 1.0, "rate_adder_pct": 0.0},
+    {"name": "MEDIUM", "min_score": 55, "approval_cap": 0.8, "rate_adder_pct": 0.25},
+    {"name": "ELEVATED", "min_score": 45, "approval_cap": 0.5, "rate_adder_pct": 0.5},
+    {"name": "HIGH", "min_score": 0, "approval_cap": 0.0, "rate_adder_pct": 0.0}
+  ],
+  "fraud": {
+    "max_amount_to_monthly_volume": 2.0,
+    "max_amount_to_historical_avg": 5.0
+  },
+  "good_payer": {"min_on_time_rate": 0.95, "min_settled_orders": 10, "term_extension_days": 15, "max_term_days": 45}
+}

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TradePay Decision Engine — Demo</title>
+<style>
+  :root { --navy:#14213D; --teal:#028090; --gold:#E0A100; --ink:#1F2933; --muted:#5F6B7A; --light:#F3F6F9; --ok:#1B8A5A; --warn:#C77700; --bad:#B42318; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Calibri, "Segoe UI", system-ui, sans-serif; color:var(--ink); background:#fff; }
+  header { background:var(--navy); color:#fff; padding:18px 28px; display:flex; align-items:baseline; gap:16px; }
+  header h1 { margin:0; font-size:20px; font-weight:700; }
+  header span { color:#C9D6E2; font-size:13px; }
+  main { display:grid; grid-template-columns: 380px 1fr; gap:24px; padding:24px 28px; max-width:1280px; margin:0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--light); border-radius:10px; padding:18px; }
+  h2 { font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--teal); margin:0 0 12px; }
+  .presets { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .presets button { border:1px solid #D4DCE4; background:#fff; border-radius:999px; padding:6px 12px; font-size:12.5px; cursor:pointer; }
+  .presets button:hover { border-color:var(--teal); color:var(--teal); }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  input, textarea, select { width:100%; padding:8px 10px; border:1px solid #D4DCE4; border-radius:6px; font-size:14px; font-family:inherit; background:#fff; }
+  textarea { font-family: Consolas, monospace; font-size:12.5px; min-height:64px; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .go { margin-top:16px; width:100%; padding:12px; border:0; border-radius:8px; background:var(--gold); color:var(--navy); font-weight:700; font-size:15px; cursor:pointer; }
+  .go:disabled { opacity:.6; cursor:wait; }
+  .result { display:none; }
+  .decision { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .badge { padding:8px 16px; border-radius:8px; color:#fff; font-weight:800; font-size:18px; letter-spacing:.02em; }
+  .APPROVED { background:var(--ok); } .PARTIALLY_APPROVED { background:var(--warn); } .DECLINED { background:var(--bad); }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0; }
+  .stat { background:#fff; border-radius:8px; padding:12px; }
+  .stat b { display:block; font-size:22px; color:var(--navy); font-family: Cambria, Georgia, serif; }
+  .stat span { font-size:11.5px; color:var(--muted); }
+  .reason { background:#fff; border-left:4px solid var(--teal); padding:12px 14px; border-radius:6px; font-size:14.5px; line-height:1.45; }
+  .factors { margin-top:16px; }
+  .factor { display:grid; grid-template-columns: 170px 1fr 56px; gap:10px; align-items:center; font-size:12.5px; margin:6px 0; }
+  .factor code { font-size:11px; color:var(--muted); }
+  .bar { position:relative; height:16px; background:#E7ECF1; border-radius:4px; }
+  .bar i { position:absolute; top:0; bottom:0; border-radius:4px; }
+  .bar i.pos { background:var(--teal); } .bar i.neg { background:var(--bad); } .bar i.base { background:var(--navy); } .bar i.rule { background:var(--bad); opacity:.35; }
+  .impact { text-align:right; font-weight:700; }
+  .desc { grid-column: 1 / -1; color:var(--muted); font-size:12px; margin:-4px 0 4px; }
+  .meta { display:flex; gap:20px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:14px; }
+  .history { margin-top:16px; background:#fff; border-radius:8px; padding:12px; font-size:12.5px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .history div b { display:block; color:var(--navy); font-size:15px; }
+  details { margin-top:14px; } summary { cursor:pointer; font-size:12.5px; color:var(--muted); }
+  pre { background:#1F2933; color:#E4E7EB; padding:12px; border-radius:8px; font-size:11.5px; overflow:auto; max-height:320px; }
+  .err { color:var(--bad); font-weight:600; margin-top:12px; }
+  .empty { color:var(--muted); font-size:14px; padding:40px 0; text-align:center; }
+</style>
+</head>
+<body>
+<header><h1>TradePay Decision Engine</h1><span>Live demo · POST /decision · every decision explainable</span></header>
+<main>
+  <section class="panel">
+    <h2>1 · Pick a scenario or edit the request</h2>
+    <div class="presets" id="presets"></div>
+    <div class="row">
+      <div><label>merchant_id</label><input id="merchant_id" placeholder="blank = unknown merchant"></div>
+      <div><label>risk_tier</label><select id="risk_tier"><option>A</option><option selected>B</option><option>C</option><option>D</option><option>E</option></select></div>
+    </div>
+    <label>merchant_business_description</label><input id="merchant_business_description">
+    <div class="row">
+      <div><label>credit_limit (SAR)</label><input id="credit_limit" type="number"></div>
+      <div><label>current_exposure (SAR)</label><input id="current_exposure" type="number"></div>
+      <div><label>transaction_amount (SAR)</label><input id="transaction_amount" type="number"></div>
+      <div><label>monthly_purchase_volume (SAR)</label><input id="monthly_purchase_volume" type="number"></div>
+    </div>
+    <label>inventory_level (JSON)</label><textarea id="inventory_level"></textarea>
+    <button class="go" id="go">Decide →</button>
+    <div class="err" id="err"></div>
+  </section>
+
+  <section class="panel">
+    <h2>2 · Decision</h2>
+    <div class="empty" id="empty">Choose a scenario and press <b>Decide</b>.</div>
+    <div class="result" id="result">
+      <div class="decision"><span class="badge" id="badge"></span><span id="headline" style="font-size:14px;color:var(--muted)"></span></div>
+      <div class="stats">
+        <div class="stat"><b id="amount"></b><span>approved amount (SAR)</span></div>
+        <div class="stat"><b id="rate"></b><span>flat fee for the term</span></div>
+        <div class="stat"><b id="terms"></b><span>repayment terms</span></div>
+        <div class="stat"><b id="score"></b><span id="band">risk score / band</span></div>
+      </div>
+      <div class="reason" id="reason"></div>
+      <div class="factors"><h2>Why · score is the sum of these factors</h2><div id="factors"></div></div>
+      <div class="history" id="history"></div>
+      <div class="meta"><span id="latency"></span><span id="policy"></span><span id="did"></span></div>
+      <details><summary>Raw JSON response (this is also what the audit log records)</summary><pre id="raw"></pre></details>
+    </div>
+  </section>
+</main>
+<script>
+const PRESETS = [
+  { name: "Brief example · unknown merchant", body: { merchant_id: "", merchant_business_description: "A small grocery store in a residential area of Riyadh, operating for 5 years.", risk_tier: "B", credit_limit: 50000, current_exposure: 30000, transaction_amount: 12000, monthly_purchase_volume: 65000, inventory_level: { sku_A: 100, sku_B: 50, sku_C: 200 } } },
+  { name: "Prime merchant · M-1001", body: { merchant_id: "M-1001", merchant_business_description: "Baqala, Dammam, 12 months of perfect repayment", risk_tier: "A", credit_limit: 116000, current_exposure: 20000, transaction_amount: 25000, monthly_purchase_volume: 250000, inventory_level: { sku_A: 100, sku_B: 50, sku_C: 200 } } },
+  { name: "Order above remaining credit · M-1005", body: { merchant_id: "M-1005", merchant_business_description: "Mini-market, strong payer, limit nearly used", risk_tier: "A", credit_limit: 100000, current_exposure: 80000, transaction_amount: 35000, monthly_purchase_volume: 220000, inventory_level: {} } },
+  { name: "Late payer · M-1020", body: { merchant_id: "M-1020", merchant_business_description: "Baqala with several late repayments", risk_tier: "B", credit_limit: 50000, current_exposure: 30000, transaction_amount: 12000, monthly_purchase_volume: 65000, inventory_level: { sku_A: 40 } } },
+  { name: "Prior default · M-1052", body: { merchant_id: "M-1052", merchant_business_description: "HoReCa outlet with defaults", risk_tier: "D", credit_limit: 30000, current_exposure: 5000, transaction_amount: 6000, monthly_purchase_volume: 40000, inventory_level: {} } },
+  { name: "Fraud gate · 3× monthly volume", body: { merchant_id: "M-1020", merchant_business_description: "Sudden very large order", risk_tier: "B", credit_limit: 300000, current_exposure: 0, transaction_amount: 240000, monthly_purchase_volume: 80000, inventory_level: {} } },
+  { name: "Thin file · M-1058", body: { merchant_id: "M-1058", merchant_business_description: "New merchant, 2 months on file", risk_tier: "C", credit_limit: 20000, current_exposure: 2000, transaction_amount: 9000, monthly_purchase_volume: 30000, inventory_level: { sku_A: 10, sku_B: 10, sku_C: 10 } } },
+];
+const $ = id => document.getElementById(id);
+const fields = ["merchant_id","merchant_business_description","risk_tier","credit_limit","current_exposure","transaction_amount","monthly_purchase_volume"];
+function load(p) { fields.forEach(f => $(f).value = p.body[f]); $("inventory_level").value = JSON.stringify(p.body.inventory_level); }
+PRESETS.forEach(p => { const b = document.createElement("button"); b.textContent = p.name; b.onclick = () => { load(p); decide(); }; $("presets").appendChild(b); });
+load(PRESETS[0]);
+const fmt = n => Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
+async function decide() {
+  $("err").textContent = "";
+  let inv; try { inv = JSON.parse($("inventory_level").value || "{}"); } catch { $("err").textContent = "inventory_level must be valid JSON"; return; }
+  const body = { inventory_level: inv };
+  fields.forEach(f => body[f] = ["merchant_id","merchant_business_description","risk_tier"].includes(f) ? $(f).value : Number($(f).value));
+  $("go").disabled = true;
+  try {
+    const t0 = performance.now();
+    const res = await fetch("/decision", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const rt = performance.now() - t0;
+    const data = await res.json();
+    if (!res.ok) { $("err").textContent = "Validation error: " + JSON.stringify(data.detail); return; }
+    render(data, rt);
+  } catch (e) { $("err").textContent = String(e); } finally { $("go").disabled = false; }
+}
+function render(d, rt) {
+  $("empty").style.display = "none"; $("result").style.display = "block";
+  $("badge").textContent = d.decision.replace("_", " "); $("badge").className = "badge " + d.decision;
+  $("headline").textContent = d.decision === "DECLINED" ? "No financing offered" : `Financing SAR ${fmt(d.approved_amount)} at ${d.interest_rate}% for ${d.repayment_terms}`;
+  $("amount").textContent = d.approved_amount ? fmt(d.approved_amount) : "—";
+  $("rate").textContent = d.interest_rate ? d.interest_rate + " %" : "—";
+  $("terms").textContent = d.repayment_terms;
+  $("score").textContent = d.score; $("band").textContent = "risk score · band " + d.risk_band;
+  $("reason").textContent = d.reason;
+  const maxAbs = Math.max(20, ...d.factors.filter(f => f.code !== "TIER_BASE").map(f => Math.abs(f.impact)));
+  $("factors").innerHTML = d.factors.map(f => {
+    const isBase = f.code === "TIER_BASE", isRule = f.impact === 0;
+    const w = isBase ? 100 : Math.min(100, Math.abs(f.impact) / maxAbs * 50);
+    const cls = isRule ? "rule" : isBase ? "base" : f.impact > 0 ? "pos" : "neg";
+    const style = isBase ? `left:0;width:${f.impact}%` : isRule ? "left:0;right:0" : f.impact > 0 ? `left:50%;width:${w}%` : `right:50%;width:${w}%`;
+    const impact = isRule ? "RULE" : (f.impact > 0 ? "+" : "") + f.impact;
+    return `<div class="factor"><span><code>${f.code}</code></span><div class="bar"><i class="${cls}" style="${style}"></i></div><span class="impact" style="color:${isRule ? 'var(--bad)' : f.impact < 0 ? 'var(--bad)' : 'var(--teal)'}">${impact}</span><span class="desc">${f.description}</span></div>`;
+  }).join("");
+  const h = d.merchant_history;
+  $("history").innerHTML = h ? [["transactions", h.transactions], ["on-time rate", h.on_time_rate == null ? "—" : Math.round(h.on_time_rate * 100) + " %"], ["late / defaults", `${h.late_count} / ${h.default_count}`], ["volume trend 90d", h.volume_trend == null ? "—" : h.volume_trend + "×"]].map(([k, v]) => `<div><b>${v}</b>${k}</div>`).join("")
+    : `<div style="grid-column:1/-1;color:var(--muted)">No transaction history on file for this merchant (thin file).</div>`;
+  $("latency").textContent = `engine ${d.processing_time_ms} ms · round-trip ${rt.toFixed(1)} ms`;
+  $("policy").textContent = `policy ${d.policy_version}`; $("did").textContent = `decision ${d.decision_id}`;
+  $("raw").textContent = JSON.stringify(d, null, 2);
+}
+$("go").onclick = decide;
+</script>
+</body>
+</html>

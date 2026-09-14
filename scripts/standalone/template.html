@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TradePay Decision Engine</title>
+<!-- Standalone demo: the decision engine ported to JavaScript with the same policy.json and the same
+     60-merchant history embedded. Open this file directly in a browser; no server or Docker needed.
+     Parity with app/engine.py was verified on 488 request fixtures (all merchants x 8 request shapes).
+     Generated file: do not edit by hand. Rebuild with `python scripts/build_standalone_demo.py`
+     after changing app/policy.json, data/transactions.csv or app/engine.py. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#F4F6F9; --surface:#FFFFFF; --surface-2:#EDF1F5; --border:#D7DEE7; --ink:#14213D; --text:#1F2A3A; --muted:#5B6B7C;
+  --accent:#0A8F98; --accent-ink:#FFFFFF; --action:#E0A100; --action-ink:#1A1A1A; --neg:#B93A2B; --pos:#0A8F98; --base:#14213D;
+  --ok:#1B8A5A; --warn:#C77700; --bad:#B42318; --rule-fill:rgba(185,58,43,.22); --track:#E4EAF0; --code-bg:#1B2537; --code-ink:#E6ECF3;
+  --shadow:0 1px 2px rgba(20,33,61,.06), 0 8px 24px -12px rgba(20,33,61,.18);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ground:#0E1626; --surface:#17223A; --surface-2:#1E2B47; --border:#2A3853; --ink:#E6ECF3; --text:#DCE4EE; --muted:#94A3B8;
+  --accent:#3FB8BF; --accent-ink:#0E1626; --action:#F0B429; --action-ink:#1A1A1A; --neg:#E5735F; --pos:#3FB8BF; --base:#8FA3C7;
+  --ok:#3DBA80; --warn:#F0A030; --bad:#E5735F; --rule-fill:rgba(229,115,95,.28); --track:#263551; --code-bg:#0B1220; --code-ink:#DCE4EE;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+}}
+:root[data-theme="dark"]{
+  --ground:#0E1626; --surface:#17223A; --surface-2:#1E2B47; --border:#2A3853; --ink:#E6ECF3; --text:#DCE4EE; --muted:#94A3B8;
+  --accent:#3FB8BF; --accent-ink:#0E1626; --action:#F0B429; --action-ink:#1A1A1A; --neg:#E5735F; --pos:#3FB8BF; --base:#8FA3C7;
+  --ok:#3DBA80; --warn:#F0A030; --bad:#E5735F; --rule-fill:rgba(229,115,95,.28); --track:#263551; --code-bg:#0B1220; --code-ink:#DCE4EE;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--text);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.45;padding-block:0 32px;padding-inline:20px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.top{max-width:1240px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px;padding-block:22px 18px}
+.top h1{margin:0;font-size:20px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.top .sub{color:var(--muted);font-size:13px}
+.chips{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);color:var(--muted);background:var(--surface)}
+.chip b{color:var(--text);font-weight:500}
+main{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:360px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.pane{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px}
+h2{margin:0 0 12px;font-size:11.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.presets button{font:inherit;font-size:12.5px;padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.presets button:hover,.presets button:focus-visible{border-color:var(--accent);color:var(--accent);outline:none}
+.presets button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+label{display:block;font-size:11.5px;color:var(--muted);margin:10px 0 4px}
+input,select,textarea{width:100%;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text)}
+input:focus-visible,select:focus-visible,textarea:focus-visible,details summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+textarea{min-height:60px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hint{font-size:11.5px;color:var(--muted);margin-top:6px}
+.go{margin-top:16px;width:100%;font:inherit;font-weight:600;font-size:15px;padding:12px;border:0;border-radius:8px;background:var(--action);color:var(--action-ink);cursor:pointer}
+.go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.err{color:var(--bad);font-weight:500;margin-top:10px;min-height:1.2em}
+.decision{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.badge{padding:8px 14px;border-radius:8px;color:#fff;font-weight:700;font-size:17px;letter-spacing:.02em}
+.APPROVED{background:var(--ok)}.PARTIALLY_APPROVED{background:var(--warn)}.DECLINED{background:var(--bad)}
+.headline{color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}
+@media (max-width:560px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--surface-2);border-radius:8px;padding:12px 12px 10px}
+.stat b{display:block;font-size:22px;font-weight:600;color:var(--ink);line-height:1.15}
+.stat span{font-size:11.5px;color:var(--muted)}
+.reason{background:var(--surface-2);border-left:3px solid var(--accent);padding:12px 14px;border-radius:6px;font-size:14.5px;line-height:1.5;max-width:72ch}
+.factors{margin-top:18px}
+.factor{display:grid;grid-template-columns:190px minmax(0,1fr) 56px;gap:0 12px;align-items:center;padding:7px 0;border-top:1px solid var(--border)}
+.factor:first-child{border-top:0}
+@media (max-width:560px){.factor{grid-template-columns:minmax(0,1fr) 56px}.factor .bar{grid-column:1/-1;margin-top:6px}}
+.factor code{font-size:11.5px;color:var(--muted)}
+.bar{position:relative;height:14px;background:var(--track);border-radius:3px}
+.bar::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--border)}
+.bar.full::after{display:none}
+.bar i{position:absolute;top:0;bottom:0;border-radius:3px}
+.bar i.pos{background:var(--pos)}.bar i.neg{background:var(--neg)}.bar i.base{background:var(--base)}.bar i.rule{background:var(--rule-fill)}
+.impact{text-align:right;font-weight:600}
+.desc{grid-column:1/-1;color:var(--muted);font-size:12px;margin-top:2px}
+.history{margin-top:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media (max-width:560px){.history{grid-template-columns:repeat(2,1fr)}}
+.history div{background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:11.5px;color:var(--muted)}
+.history div b{display:block;color:var(--ink);font-size:16px;font-weight:600}
+.history .thin{grid-column:1/-1;font-size:13px}
+.meta{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:14px}
+details{margin-top:12px}summary{cursor:pointer;font-size:12.5px;color:var(--muted)}
+pre{background:var(--code-bg);color:var(--code-ink);padding:12px;border-radius:8px;font-size:11.5px;overflow:auto;max-height:340px;margin:8px 0 0}
+.note{max-width:1240px;margin:16px auto 0;font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .25s ease}}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>TradePay Decision Engine</h1>
+  <span class="sub">Real-time credit decision for a merchant purchase · every decision explainable</span>
+  <div class="chips"><span class="chip">policy <b id="chip-policy" class="mono"></b></span><span class="chip">history <b id="chip-hist"></b></span><span class="chip">engine <b>JavaScript port, parity-checked</b></span></div>
+</div>
+
+<main>
+  <section class="pane" aria-labelledby="h-req">
+    <h2 id="h-req">1 · Scenario</h2>
+    <div class="presets" id="presets" role="group" aria-label="Preset scenarios"></div>
+    <label for="merchant_id">merchant_id</label>
+    <input id="merchant_id" list="merchants" placeholder="blank = unknown merchant" autocomplete="off">
+    <datalist id="merchants"></datalist>
+    <div class="hint" id="mhint"></div>
+    <div class="row">
+      <div><label for="risk_tier">risk_tier</label><select id="risk_tier"><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select></div>
+      <div><label for="transaction_amount">transaction_amount (SAR)</label><input id="transaction_amount" class="mono" type="number" min="0" step="100"></div>
+      <div><label for="credit_limit">credit_limit (SAR)</label><input id="credit_limit" class="mono" type="number" min="0" step="1000"></div>
+      <div><label for="current_exposure">current_exposure (SAR)</label><input id="current_exposure" class="mono" type="number" min="0" step="1000"></div>
+    </div>
+    <label for="monthly_purchase_volume">monthly_purchase_volume (SAR)</label><input id="monthly_purchase_volume" class="mono" type="number" min="0" step="1000">
+    <label for="merchant_business_description">merchant_business_description</label><input id="merchant_business_description">
+    <label for="inventory_level">inventory_level (JSON)</label><textarea id="inventory_level" class="mono"></textarea>
+    <button class="go" id="go">Decide</button>
+    <div class="err" id="err" role="alert"></div>
+  </section>
+
+  <section class="pane" aria-labelledby="h-dec" aria-live="polite">
+    <h2 id="h-dec">2 · Decision</h2>
+    <div class="decision"><span class="badge" id="badge"></span><span class="headline" id="headline"></span></div>
+    <div class="stats">
+      <div class="stat"><b id="amount" class="mono"></b><span>approved amount (SAR)</span></div>
+      <div class="stat"><b id="rate" class="mono"></b><span>flat fee for the term</span></div>
+      <div class="stat"><b id="terms" class="mono"></b><span>repayment terms</span></div>
+      <div class="stat"><b id="score" class="mono"></b><span id="band">risk score · band</span></div>
+    </div>
+    <div class="reason" id="reason"></div>
+    <div class="factors"><h2>Why · the score is the sum of these factors</h2><div id="factors"></div></div>
+    <div class="history" id="history"></div>
+    <div class="meta"><span id="latency"></span><span id="did" class="mono"></span></div>
+    <details><summary>Raw JSON response — the same record the server writes to its audit log</summary><pre id="raw" class="mono"></pre></details>
+  </section>
+</main>
+<p class="note">This page runs the decision logic in the browser using a JavaScript port of the Python service (verified identical on 488 test cases) with the same policy and the same 60-merchant synthetic history. The submitted microservice serves the same decisions at <span class="mono">POST /decision</span>.</p>
+
+<script>
+const DATA = __DATA__;
+__ENGINE__
+
+const PRESETS = [
+  { name: "Brief example · unknown merchant", body: { merchant_id: "", merchant_business_description: "A small grocery store in a residential area of Riyadh, operating for 5 years.", risk_tier: "B", credit_limit: 50000, current_exposure: 30000, transaction_amount: 12000, monthly_purchase_volume: 65000, inventory_level: { sku_A: 100, sku_B: 50, sku_C: 200 } } },
+  { name: "Prime merchant · M-1001", body: { merchant_id: "M-1001", merchant_business_description: "Baqala, Dammam, 12 months of perfect repayment", risk_tier: "A", credit_limit: 116000, current_exposure: 20000, transaction_amount: 25000, monthly_purchase_volume: 250000, inventory_level: { sku_A: 100, sku_B: 50, sku_C: 200 } } },
+  { name: "Order above remaining credit · M-1005", body: { merchant_id: "M-1005", merchant_business_description: "Mini-market, strong payer, limit nearly used", risk_tier: "A", credit_limit: 100000, current_exposure: 80000, transaction_amount: 35000, monthly_purchase_volume: 220000, inventory_level: {} } },
+  { name: "Late payer · M-1020", body: { merchant_id: "M-1020", merchant_business_description: "Baqala with several late repayments", risk_tier: "B", credit_limit: 50000, current_exposure: 30000, transaction_amount: 12000, monthly_purchase_volume: 65000, inventory_level: { sku_A: 40 } } },
+  { name: "Prior default · M-1052", body: { merchant_id: "M-1052", merchant_business_description: "HoReCa outlet with defaults", risk_tier: "D", credit_limit: 30000, current_exposure: 5000, transaction_amount: 6000, monthly_purchase_volume: 40000, inventory_level: {} } },
+  { name: "Fraud gate · 3× monthly volume", body: { merchant_id: "M-1020", merchant_business_description: "Sudden very large order", risk_tier: "B", credit_limit: 300000, current_exposure: 0, transaction_amount: 240000, monthly_purchase_volume: 80000, inventory_level: {} } },
+  { name: "Thin file · M-1058", body: { merchant_id: "M-1058", merchant_business_description: "New merchant, 2 months on file", risk_tier: "C", credit_limit: 20000, current_exposure: 2000, transaction_amount: 9000, monthly_purchase_volume: 30000, inventory_level: { sku_A: 10, sku_B: 10, sku_C: 10 } } },
+];
+const $ = id => document.getElementById(id);
+const fields = ["merchant_id","merchant_business_description","risk_tier","credit_limit","current_exposure","transaction_amount","monthly_purchase_volume"];
+const fmt = n => Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
+$("chip-policy").textContent = DATA.policy.version;
+$("chip-hist").textContent = `${Object.keys(DATA.profiles).length} merchants · 12 months to ${new Date(DATA.as_of).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}`;
+const dl = $("merchants");
+for (const [id, p] of Object.entries(DATA.profiles)) { const o = document.createElement("option"); o.value = id; o.label = `${p.segment.replace("_"," ")} · ${p.city} · tier ${p.tier} · ${p.archetype}`; dl.appendChild(o); }
+function merchantHint() {
+  const p = DATA.profiles[$("merchant_id").value.trim()];
+  $("mhint").textContent = p ? `${p.segment.replace("_"," ")} in ${p.city} · pre-scored tier ${p.tier} · ${p.transactions} orders on file · archetype: ${p.archetype}` : ($("merchant_id").value.trim() ? "No history on file for this id — thin-file path." : "Blank id = unknown merchant (thin-file path). Type M-10 to browse the 60 sample merchants.");
+}
+$("merchant_id").addEventListener("input", merchantHint);
+function load(p) { fields.forEach(f => $(f).value = p.body[f]); $("inventory_level").value = JSON.stringify(p.body.inventory_level); merchantHint(); }
+PRESETS.forEach((p, i) => { const b = document.createElement("button"); b.type = "button"; b.textContent = p.name; b.dataset.i = i; b.setAttribute("aria-pressed", "false"); b.onclick = () => { load(p); decide(i); }; $("presets").appendChild(b); });
+function decide(presetIndex) {
+  $("err").textContent = "";
+  [...$("presets").children].forEach((b, i) => b.setAttribute("aria-pressed", String(i === presetIndex)));
+  let inv; try { inv = JSON.parse($("inventory_level").value || "{}"); } catch { $("err").textContent = "inventory_level must be valid JSON, e.g. {\"sku_A\": 100}"; return; }
+  const body = { inventory_level: inv };
+  fields.forEach(f => body[f] = ["merchant_id","merchant_business_description","risk_tier"].includes(f) ? $(f).value.trim() : Number($(f).value));
+  if (!(body.transaction_amount > 0)) { $("err").textContent = "transaction_amount must be greater than 0."; return; }
+  if (body.credit_limit < 0 || body.current_exposure < 0 || body.monthly_purchase_volume < 0) { $("err").textContent = "Amounts cannot be negative."; return; }
+  if (Object.values(inv).some(v => typeof v !== "number" || v < 0)) { $("err").textContent = "Inventory quantities must be numbers ≥ 0."; return; }
+  render(decide_original(body, DATA.profiles, DATA.policy));
+}
+function render(d) {
+  $("badge").textContent = d.decision.replace("_", " "); $("badge").className = "badge " + d.decision;
+  $("headline").textContent = d.decision === "DECLINED" ? "No financing offered" : `Financing SAR ${fmt(d.approved_amount)} at ${d.interest_rate}% for ${d.repayment_terms}`;
+  $("amount").textContent = d.approved_amount ? fmt(d.approved_amount) : "—";
+  $("rate").textContent = d.interest_rate ? d.interest_rate + " %" : "—";
+  $("terms").textContent = d.repayment_terms;
+  $("score").textContent = d.score; $("band").textContent = "risk score · band " + d.risk_band;
+  $("reason").textContent = d.reason;
+  const maxAbs = Math.max(20, ...d.factors.filter(f => f.code !== "TIER_BASE").map(f => Math.abs(f.impact)));
+  $("factors").innerHTML = d.factors.map(f => {
+    const isBase = f.code === "TIER_BASE", isRule = f.impact === 0;
+    const w = isBase ? f.impact : Math.min(50, Math.abs(f.impact) / maxAbs * 50);
+    const cls = isRule ? "rule" : isBase ? "base" : f.impact > 0 ? "pos" : "neg";
+    const style = isBase ? `left:0;width:${w}%` : isRule ? "left:0;right:0" : f.impact > 0 ? `left:50%;width:${w}%` : `right:50%;width:${w}%`;
+    const impact = isRule ? "RULE" : (f.impact > 0 ? "+" : "") + f.impact;
+    const color = isRule || f.impact < 0 ? "var(--neg)" : isBase ? "var(--ink)" : "var(--pos)";
+    return `<div class="factor"><code class="mono">${f.code}</code><div class="bar ${isBase || isRule ? "full" : ""}"><i class="${cls}" style="${style}"></i></div><span class="impact mono" style="color:${color}">${impact}</span><span class="desc">${f.description}</span></div>`;
+  }).join("");
+  const h = d.merchant_history;
+  $("history").innerHTML = h
+    ? [["transactions on file", h.transactions], ["on-time repayment", h.on_time_rate == null ? "—" : Math.round(h.on_time_rate * 100) + " %"], ["late / defaults", `${h.late_count} / ${h.default_count}`], ["volume trend, 90d", h.volume_trend == null ? "—" : h.volume_trend + "×"]].map(([k, v]) => `<div><b class="mono">${v}</b>${k}</div>`).join("")
+    : `<div class="thin">No transaction history on file for this merchant — decided on tier and request signals only (thin-file path).</div>`;
+  $("latency").textContent = `engine ${d.processing_time_ms} ms in this browser`;
+  $("did").textContent = `decision ${d.decision_id}`;
+  $("raw").textContent = JSON.stringify(d, null, 2);
+}
+$("go").onclick = () => decide(-1);
+load(PRESETS[0]); decide(0);
+</script>
+
+</body>
+</html>
